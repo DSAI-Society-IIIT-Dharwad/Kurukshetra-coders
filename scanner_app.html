@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-Scanner | Live Web Scanner</title>
+    <!-- Chosen Palette: Slate Gray & Cyan -->
+    <!-- Application Structure Plan: Upgraded to a dashboard layout. The structure is: 1. Header, 2. Input Section, 3. Results Section (now a 2-column dashboard: Summary/Chart on left, Details/Filters on right), 4. Education Section. This is far more interactive and professional. -->
+    <!-- Visualization & Content Choices: Added a Chart.js Donut chart to visualize severity counts. Added JS-powered filter buttons to interact with the detailed results. This directly addresses the user's request for more interactivity and useful info. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ADDED CHART.JS LIBRARY -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Tailwind gray-50 */
+        }
+        /* Simple loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #06b6d4; /* cyan-600 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Styles for filter buttons */
+        .filter-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .filter-btn.active {
+            background-color: #06b6d4; /* cyan-600 */
+            color: white;
+            font-weight: 500;
+        }
+
+        /* Print-friendly styles */
+        @media print {
+            body {
+                background-color: #ffffff;
+            }
+            #scanner-input, #header, #education-section, #filter-container, #print-button {
+                display: none !important;
+            }
+            main.container {
+                padding: 0;
+                margin: 0;
+            }
+            #results-dashboard-grid {
+                grid-template-columns: 1fr !important;
+            }
+            #dashboard-summary-col {
+                margin-bottom: 2rem;
+            }
+            .p-6, .p-8 {
+                padding: 1rem !important;
+            }
+            .shadow-md {
+                box-shadow: none !important;
+                border: 1px solid #e5e7eb !important;
+            }
+            .text-3xl {
+                font-size: 1.5rem !important;
+            }
+            .text-2xl {
+                font-size: 1.25rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Header -->
+    <header id="header" class="bg-white shadow-sm">
+        <nav class="container mx-auto px-6 py-4">
+            <div class="text-2xl font-bold text-gray-800">
+                <span class="text-cyan-600">V</span>-Scanner
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-12">
+        
+        <!-- Input Section -->
+        <section id="scanner-input" class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                Live Vulnerability Scanner
+            </h1>
+            <p class="text-gray-600 mb-6">
+                Enter a full URL (e.g., <code>http://testphp.vulnweb.com</code>) to scan for common vulnerabilities.
+            </p>
+            
+            <form id="scan-form">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input 
+                        type="text" 
+                        id="url-input" 
+                        placeholder="http://example.com"
+                        class="flex-grow px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        required
+                    >
+                    <button 
+                        type="submit" 
+                        id="scan-button"
+                        class="bg-cyan-600 text-white px-8 py-3 rounded-md text-lg font-medium hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 flex-shrink-0"
+                    >
+                        Scan
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results-section" class="max-w-4xl mx-auto mt-12">
+            
+            <!-- Loading State -->
+            <div id="loading-spinner" class="hidden flex-col items-center justify-center p-12">
+                <div class="loader"></div>
+                <p class="text-gray-600 mt-4 text-lg">Scanning... this may take a moment.</p>
+            </div>
+            
+            <!-- Initial Message -->
+            <div id="results-placeholder" class="text-center text-gray-500 p-12 bg-white rounded-lg shadow-md border border-gray-200">
+                Scan results will appear here.
+            </div>
+
+            <!-- This container will be hidden until results are ready -->
+            <div id="results-dashboard" class="hidden">
+                <!-- Dashboard Header -->
+                <div class_="flex justify-between items-center mb-6">
+                    <h2 id="summary-header" class="text-3xl font-bold text-gray-800"></h2>
+                    <button id="print-button" onclick="window.print()" class="text-sm bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
+                        &#x1F5A8; Print Report
+                    </button>
+                </div>
+
+                <!-- 2-Column Dashboard Grid -->
+                <div id="results-dashboard-grid" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <!-- Left Column: Summary & Chart -->
+                    <div id="dashboard-summary-col" class="lg:col-span-1 space-y-6">
+                        <h3 class="text-2xl font-bold text-gray-800">Scan Summary</h3>
+
+                        <!-- Score Card -->
+                        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+                            <span class="text-sm font-medium text-gray-500">Security Score</span>
+                            <div id="security-score" class="text-6xl font-bold text-gray-800 my-2">--</div>
+                            <span class="text-gray-600">out of 100</span>
+                        </div>
+
+                        <!-- Total Card -->
+                        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+                            <span class="text-sm font-medium text-gray-500">Total Vulnerabilities</span>
+                            <div id="total-findings" class="text-6xl font-bold text-gray-800 my-2">--</div>
+                            <span class="text-gray-600">findings</span>
+                        </div>
+                        
+                        <!-- Chart Card -->
+                        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                            <h4 class="text-lg font-medium text-gray-800 mb-4 text-center">Findings by Severity</h4>
+                            <!-- chart-container class helps control sizing -->
+                            <div class="chart-container" style="position: relative; height:280px; width:100%; max-width: 400px; margin: auto;">
+                                <canvas id="severityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Detailed Findings & Filters -->
+                    <div class="lg:col-span-2">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Detailed Findings</h3>
+                        
+                        <!-- Filter Buttons -->
+                        <div id="filter-container" class="flex flex-wrap gap-2 mb-6">
+                            <!-- Filters will be injected here -->
+                        </div>
+
+                        <!-- Dynamic Results Container -->
+                        <div id="results-container" class="space-y-6">
+                            <!-- Results will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Education Section -->
+        <section id="education-section" class="max-w-4xl mx-auto mt-12 p-8 bg-white rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">What Do These Severities Mean?</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- High -->
+                <div class="p-4 rounded-md bg-red-50 border border-red-200">
+                    <h3 class="text-xl font-bold text-red-700 mb-2">High / Critical</h3>
+                    <p class="text-gray-700">
+                        "Fix this NOW." These are serious security holes that could be used by an attacker to
+                        steal data, take over the server, or run malicious code.
+                    </p>
+                </div>
+                <!-- Medium -->
+                <div class="p-4 rounded-md bg-yellow-50 border border-yellow-200">
+                    <h3 class="text-xl font-bold text-yellow-700 mb-2">Medium</h3>
+                    <p class="text-gray-700">
+                        "This is a significant risk." It helps an attacker perform an attack, such as
+                        tricking users (clickjacking) or finding entry points for injecting scripts.
+                    </p>
+                </div>
+                <!-- Low -->
+                <div class="p-4 rounded-md bg-blue-50 border border-blue-200">
+                    <h3 class="text-xl font-bold text-blue-700 mb-2">Low</h3>
+                    <p class="text-gray-700">
+                        "This is a 'best practice' fix." It's not an immediate danger, but it
+                        leaks information (like server versions) that could help an attacker plan an attack.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Get references to all our important DOM elements
+        const scanForm = document.getElementById('scan-form');
+        const urlInput = document.getElementById('url-input');
+        const scanButton = document.getElementById('scan-button');
+        
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsPlaceholder = document.getElementById('results-placeholder');
+        const resultsDashboard = document.getElementById('results-dashboard');
+        
+        const summaryHeader = document.getElementById('summary-header');
+        const securityScoreEl = document.getElementById('security-score');
+        const totalFindingsEl = document.getElementById('total-findings');
+        const filterContainer = document.getElementById('filter-container');
+        const resultsContainer = document.getElementById('results-container');
+        const severityChartEl = document.getElementById('severityChart');
+
+        // Global variable to hold the chart instance so we can destroy it
+        let severityChartInstance = null;
+
+        // --- Main Scan Function ---
+        const handleScan = async (event) => {
+            event.preventDefault(); 
+            
+            const targetUrl = urlInput.value;
+            if (!targetUrl) return;
+
+            // --- 1. Set UI to Loading State ---
+            scanButton.disabled = true;
+            scanButton.textContent = 'Scanning...';
+            resultsPlaceholder.classList.add('hidden');
+            resultsDashboard.classList.add('hidden'); // Hide old results
+            resultsContainer.innerHTML = ''; 
+            filterContainer.innerHTML = '';
+            loadingSpinner.classList.remove('hidden');
+            loadingSpinner.classList.add('flex');
+
+            // Destroy the old chart if it exists
+            if (severityChartInstance) {
+                severityChartInstance.destroy();
+                severityChartInstance = null;
+            }
+
+            try {
+                // --- 2. Call the Backend API ---
+                const apiUrl = `http://localhost:5000/scan?url=${encodeURIComponent(targetUrl)}`;
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const findings = await response.json();
+                
+                // --- 3. Display the Results ---
+                displayResults(findings, targetUrl);
+
+            } catch (error) {
+                // Handle errors
+                console.error('Fetch error:', error);
+                resultsPlaceholder.classList.remove('hidden'); // Show the placeholder again
+                resultsPlaceholder.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-md shadow-md">
+                        <h3 class="text-xl font-bold mb-2">Scan Failed</h3>
+                        <p class="mb-2">Could not connect to the scanner backend. Is it running?</p>
+                        <p class="font-mono text-sm bg-red-100 p-2 rounded">${error.message}</p>
+                        <p class="mt-4">In your terminal, please run: <code>python app.py</code></p>
+                    </div>
+                `;
+            } finally {
+                // --- 4. Reset UI ---
+                scanButton.disabled = false;
+                scanButton.textContent = 'Scan';
+                loadingSpinner.classList.add('hidden');
+                loadingSpinner.classList.remove('flex');
+            }
+        };
+
+        scanForm.addEventListener('submit', handleScan);
+
+        // --- Result Display Functions ---
+
+        const displayResults = (findings, targetUrl) => {
+            // Show the main results dashboard
+            resultsDashboard.classList.remove('hidden');
+            summaryHeader.innerHTML = `Scan Report for <span class="text-cyan-600">${targetUrl}</span>`;
+
+            // --- 1. Calculate Stats ---
+            const severityCounts = { "Critical": 0, "High": 0, "Medium": 0, "Low": 0 };
+            findings.forEach(f => {
+                if (severityCounts.hasOwnProperty(f.severity)) {
+                    severityCounts[f.severity]++;
+                }
+            });
+            const totalFindings = findings.length;
+
+            // Calculate Security Score
+            let score = 100;
+            score -= (severityCounts.Critical * 15);
+            score -= (severityCounts.High * 10);
+            score -= (severityCounts.Medium * 5);
+            score -= (severityCounts.Low * 1);
+            const securityScore = Math.max(0, score); // Don't go below 0
+
+            // --- 2. Render Dashboard ---
+            securityScoreEl.textContent = securityScore;
+            totalFindingsEl.textContent = totalFindings;
+            // Set score color
+            securityScoreEl.className = "text-6xl font-bold my-2 ";
+            if (securityScore < 50) {
+                securityScoreEl.classList.add("text-red-600");
+            } else if (securityScore < 80) {
+                securityScoreEl.classList.add("text-yellow-600");
+            } else {
+                securityScoreEl.classList.add("text-green-600");
+            }
+            
+            // --- 3. Render Donut Chart ---
+            renderSeverityChart(severityCounts);
+
+            // --- 4. Render Filters & Cards ---
+            if (totalFindings === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="bg-green-50 border-l-4 border-green-500 text-green-700 p-6 rounded-md shadow-md">
+                        <h3 class="text-xl font-bold">All Clear!</h3>
+                        <p>No common vulnerabilities were found in this scan.</p>
+                    </div>
+                `;
+                filterContainer.innerHTML = ''; // No filters needed
+            } else {
+                renderFilters(findings, severityCounts);
+                renderFindingCards(findings); // Show all by default
+            }
+        };
+
+        const renderSeverityChart = (counts) => {
+            const ctx = severityChartEl.getContext('2d');
+            severityChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: [counts.Critical, counts.High, counts.Medium, counts.Low],
+                        backgroundColor: [
+                            '#dc2626', // red-600
+                            '#f59e0b', // yellow-500
+                            '#3b82f6', // blue-500
+                            '#6b7280'  // gray-500
+                        ],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        };
+
+        const renderFilters = (findings, counts) => {
+            filterContainer.innerHTML = ''; // Clear old filters
+            
+            const createFilterButton = (severity, count) => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200';
+                btn.textContent = `${severity} (${count})`;
+                btn.dataset.severity = severity; // Store severity in data attribute
+                
+                btn.addEventListener('click', () => {
+                    // Update active styles
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Filter and re-render cards
+                    const filteredFindings = (severity === 'All') 
+                        ? findings 
+                        : findings.filter(f => f.severity === severity);
+                    renderFindingCards(filteredFindings);
+                });
+                return btn;
+            };
+
+            const allButton = createFilterButton('All', findings.length);
+            allButton.classList.add('active'); // 'All' is active by default
+            filterContainer.appendChild(allButton);
+
+            if (counts.Critical > 0) filterContainer.appendChild(createFilterButton('Critical', counts.Critical));
+            if (counts.High > 0) filterContainer.appendChild(createFilterButton('High', counts.High));
+            if (counts.Medium > 0) filterContainer.appendChild(createFilterButton('Medium', counts.Medium));
+            if (counts.Low > 0) filterContainer.appendChild(createFilterButton('Low', counts.Low));
+        };
+
+        const renderFindingCards = (findingsToShow) => {
+            resultsContainer.innerHTML = ''; // Clear old cards
+
+            if (findingsToShow.length === 0) {
+                 resultsContainer.innerHTML = `<p class="text-gray-500">No findings for this severity level.</p>`;
+                 return;
+            }
+
+            // Sort by severity
+            const severityOrder = { "Critical": 4, "High": 3, "Medium": 2, "Low": 1 };
+            findingsToShow.sort((a, b) => (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0));
+
+            const colorMap = {
+                "Critical": "border-red-500 bg-red-50 text-red-700",
+                "High": "border-yellow-500 bg-yellow-50 text-yellow-700",
+                "Medium": "border-blue-500 bg-blue-50 text-blue-700",
+                "Low": "border-gray-500 bg-gray-50 text-gray-700"
+            };
+
+            findingsToShow.forEach(finding => {
+                const colors = colorMap[finding.severity] || colorMap["Low"];
+                const findingCard = document.createElement('div');
+                findingCard.className = `p-6 rounded-lg shadow-md border-l-4 ${colors}`;
+                
+                findingCard.innerHTML = `
+                    <span class="font-bold text-sm uppercase">${finding.severity}</span>
+                    <h3 class="text-xl font-bold text-gray-900 mt-1 mb-2">${finding.vulnerability}</h3>
+                    <div class="space-y-2">
+                        <p><strong>Details:</strong> ${finding.details}</p>
+                        <p><strong>Recommendation:</strong> ${finding.recommendation}</p>
+                    </div>
+                `;
+                resultsContainer.appendChild(findingCard);
+            });
+        };
+
+    </script>
+</body>
+</html>
+
