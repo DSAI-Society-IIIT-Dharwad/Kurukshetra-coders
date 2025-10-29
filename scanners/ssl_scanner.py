@@ -5,8 +5,8 @@ import logging
 from datetime import datetime
 from urllib.parse import urlparse
 from models import Vulnerability
-from utils import severity
-from utils import recommendations
+from utils.severity import SeverityCalculator
+from utils.recommendations import RecommendationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class SSLScanner:
                             vuln_type='SSL_EXPIRED',
                             severity='CRITICAL',
                             description=f"SSL certificate expired {abs(days_until_expiry)} days ago.",
-                            recommendation=recommendations.get_recommendation('SSL_EXPIRED')['fix'],
+                            recommendation=RecommendationEngine.get_recommendation('SSL_EXPIRED')['fix'],
                             evidence={
                                 'expiry_date': cert['notAfter'],
                                 'days_expired': abs(days_until_expiry)
@@ -89,7 +89,7 @@ class SSLScanner:
                                 vuln_type='SSL_WEAK_CIPHER',
                                 severity='HIGH',
                                 description=f"Weak cipher suite detected: {cipher_name}",
-                                recommendation=recommendations.get_recommendation('SSL_WEAK_CIPHER')['fix'],
+                                recommendation=RecommendationEngine.get_recommendation('SSL_WEAK_CIPHER')['fix'],
                                 evidence={
                                     'cipher': cipher_name,
                                     'protocol': cipher[1],

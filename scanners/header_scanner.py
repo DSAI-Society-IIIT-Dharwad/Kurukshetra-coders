@@ -1,8 +1,8 @@
 import requests
 import logging
 from models import Vulnerability
-from utils import severity
-from utils import recommendations
+from utils.severity import SeverityCalculator
+from utils.recommendations import RecommendationEngine
 logger = logging.getLogger(__name__)
 
 class HeaderScanner:
@@ -39,7 +39,7 @@ class HeaderScanner:
             for header_name, vuln_type in self.security_headers.items():
                 if header_name not in headers:
                     severity = severity.get_severity(vuln_type)
-                    recommendation = recommendations.get_recommendation(vuln_type)
+                    recommendation = RecommendationEngine.get_recommendation(vuln_type)
                     
                     vuln = Vulnerability(
                         vuln_type=vuln_type,

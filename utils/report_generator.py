@@ -151,7 +151,7 @@ class ReportGenerator:
                     story.append(Paragraph("<b>Description:</b>", self.styles['Normal']))
                     description = vuln.get('description', 'No description available.')
                     # Escape XML special characters
-                    description = description.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    description = self._escape_xml(description)
                     story.append(Paragraph(description, self.styles['Normal']))
                     story.append(Spacer(1, 0.1*inch))
                     
@@ -161,8 +161,9 @@ class ReportGenerator:
                         story.append(Paragraph("<b>Evidence:</b>", self.styles['Normal']))
                         for key, value in evidence.items():
                             # Convert value to string and escape XML
-                            value_str = str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                            evidence_text = f"• {key.replace('_', ' ').title()}: {value_str}"
+                            value_str = self._escape_xml(str(value))
+                            key_formatted = key.replace('_', ' ').title()
+                            evidence_text = f"• {key_formatted}: {value_str}"
                             story.append(Paragraph(evidence_text, self.styles['Normal']))
                         story.append(Spacer(1, 0.1*inch))
                     
@@ -170,7 +171,7 @@ class ReportGenerator:
                     story.append(Paragraph("<b>Recommendation:</b>", self.styles['Normal']))
                     recommendation = vuln.get('recommendation', 'No recommendation available.')
                     # Escape XML special characters
-                    recommendation = recommendation.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    recommendation = self._escape_xml(recommendation)
                     story.append(Paragraph(recommendation, self.styles['Normal']))
                     
                     story.append(Spacer(1, 0.3*inch))
@@ -235,3 +236,15 @@ class ReportGenerator:
             'LOW': '16a34a'
         }
         return colors_map.get(severity, '6b7280')
+    
+    def _escape_xml(self, text):
+        """Escape XML special characters for ReportLab"""
+        if not text:
+            return ''
+        text = str(text)
+        text = text.replace('&', '&amp;')
+        text = text.replace('<', '&lt;')
+        text = text.replace('>', '&gt;')
+        text = text.replace('"', '&quot;')
+        text = text.replace("'", '&apos;')
+        return text

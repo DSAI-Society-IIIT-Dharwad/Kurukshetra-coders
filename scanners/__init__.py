@@ -5,7 +5,7 @@ from .header_scanner import HeaderScanner
 from .ssl_scanner import SSLScanner
 from .version_scanner import VersionScanner
 
-__all__ = [
+_all_ = [
     'SQLInjectionScanner',
     'XSSScanner',
     'FileScanner',

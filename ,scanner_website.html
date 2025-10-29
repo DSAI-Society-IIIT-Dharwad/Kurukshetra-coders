@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberScan</title>
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Chart.js for the donut chart -->
+    <script src="https://cdn.jsdelivr.npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <!-- 3. Google Font: Roboto Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Base styling */
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #f0f2f5;
+            /* Light gray background */
+            color: #1a1a1a;
+            /* Dark text */
+        }
+
+        /* Custom progress bar for the score */
+        @property --progress-value {
+            syntax: '<integer>';
+            inherits: false;
+            initial-value: 0;
+        }
+
+        @keyframes progress {
+            to {
+                --progress-value: var(--final-value);
+            }
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            --progress-value: 0;
+            --final-value: 0;
+            width: calc(var(--progress-value) * 1%);
+            height: 100%;
+            background-color: var(--color);
+            transition: width 1s ease-out;
+            animation: progress 1s 0.5s forwards;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #e0e0e0;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #a0a0a0;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+
+        /* Class for fade-in animation */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-6 md:p-8 border border-gray-200">
+        <!-- === HEADER === -->
+        <header class="flex items-center space-x-3 mb-6 pb-4 border-b border-gray-200">
+            <svg class="h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+            </svg>
+            <h1 class="text-3xl font-bold text-gray-900">CyberScan</h1>
+        </header>
+
+        <!-- === SCAN FORM === -->
+        <form id="scan-form" class="flex flex-col sm:flex-row gap-3 mb-6">
+            <input id="url-input" type="text" placeholder="Enter a URL... (e.g., http://testphp.vulnweb.com)"
+                class="flex-grow bg-gray-50 border border-gray-300 text-gray-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                required>
+            <button id="scan-button" type="submit"
+                class="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                <!-- Spinner icon (hidden by default) -->
+                <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden"
+                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
+                </svg>
+                <span id="button-text">Scan &gt;</span>
+            </button>
+        </form>
+
+        <!-- === ERROR MESSAGE CONTAINER === -->
+        <div id="error-message" class="hidden p-4 mb-6 bg-red-100 border border-red-300 rounded-lg text-red-800"></div>
+
+        <!-- === RESULTS CONTAINER === -->
+        <div id="results-container" class="hidden fade-in">
+
+            <!-- --- Summary Dashboard --- -->
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Scan Report</h2>
+            <div id="summary-dashboard" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Score Card -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-600 mb-3">Security Score</h3>
+                    <div id="score-card" class="flex items-center space-x-3">
+                        <div class="progress-bar-container" style="--final-value: 0; --color: #e0e0e0;">
+                            <div class="progress-bar"></div>
+                        </div>
+                        <span id="score-text" class="text-3xl font-bold text-gray-800">0%</span>
+                    </div>
+                </div>
+
+                <!-- Chart & Counts Card -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 grid grid-cols-2 gap-4 items-center"
+                    style="max-height: 200px;">
+                    <div id="chart-card" class="flex items-center justify-center h-full">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                    <div id="counts-card" class="space-y-2">
+                        <!-- Counts will be injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- --- Filter & Report Title --- -->
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4 md:mb-0">Detailed Findings</h2>
+                <div id="filter-buttons" class="flex flex-wrap gap-2">
+                    <button data-severity="ALL"
+                        class="filter-btn bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium">All</button>
+                    <button data-severity="CRITICAL"
+                        class="filter-btn bg-gray-200 hover:bg-red-600 hover:text-white text-gray-700 px-3 py-1 rounded-lg text-sm font-medium">Critical</button>
+                    <button data-severity="HIGH"
+                        class="filter-btn bg-gray-200 hover:bg-orange-500 hover:text-white text-gray-700 px-3 py-1 rounded-lg text-sm font-medium">High</button>
+                    <button data-severity="MEDIUM"
+                        class="filter-btn bg-gray-200 hover:bg-yellow-500 hover:text-white text-gray-700 px-3 py-1 rounded-lg text-sm font-medium">Medium</button>
+                    <button data-severity="LOW"
+                        class="filter-btn bg-gray-200 hover:bg-sky-500 hover:text-white text-gray-700 px-3 py-1 rounded-lg text-sm font-medium">Low</button>
+                </div>
+            </div>
+
+            <!-- --- Report Cards Container --- -->
+            <div id="report-cards" class="space-y-4">
+                <!-- Vulnerability cards will be injected here by JavaScript -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- === ADVANCED JAVASCRIPT === -->
+    <script>
+        // --- 1. DOM Element Selection ---
+        const scanForm = document.getElementById('scan-form');
+        const urlInput = document.getElementById('url-input');
+        const scanButton = document.getElementById('scan-button');
+        const buttonText = document.getElementById('button-text');
+        const spinner = document.getElementById('spinner');
+
+        const resultsContainer = document.getElementById('results-container');
+        const errorMessage = document.getElementById('error-message');
+
+        const summaryDashboard = document.getElementById('summary-dashboard');
+        const scoreCard = document.getElementById('score-card');
+        const scoreText = document.getElementById('score-text');
+        const chartCard = document.getElementById('chart-card');
+        const countsCard = document.getElementById('counts-card');
+
+        const filterButtonsContainer = document.getElementById('filter-buttons');
+        const reportCardsContainer = document.getElementById('report-cards');
+
+        let currentChartInstance = null; // To hold the Chart.js instance
+
+        // --- 2. Helper Maps for UI ---
+        const severityConfig = {
+            'CRITICAL': { color: '#ef4444', bgColor: 'bg-red-50', borderColor: 'border-red-300', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />' },
+            'HIGH': { color: '#f97316', bgColor: 'bg-orange-50', borderColor: 'border-orange-300', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />' },
+            'MEDIUM': { color: '#eab308', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25c.621 0 1.125.504 1.125 1.125v3.375c0 .621-.504 1.125-1.125 1.125h-1.5c-.621 0-1.125-.504-1.125-1.125v-3.375c0-.621.504-1.125 1.125-1.125h1.5z" />' },
+            'LOW': { color: '#0ea5e9', bgColor: 'bg-sky-50', borderColor: 'border-sky-300', icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 003.75 6v2.25A2.25 2.25 0 006 10.5z" />' }
+        };
+
+        // --- 3. Main Scan Function ---
+        scanForm.addEventListener('submit', handleScan);
+
+        async function handleScan(event) {
+            event.preventDefault();
+            const url = urlInput.value;
+            if (!url) return;
+
+            // --- A. Set loading state ---
+            setLoadingState(true);
+
+            try {
+                // --- B. Make API Call ---
+                // This 'fetch' call is the "link" to your app.py server
+                const response = await fetch('http://127.0.0.1:5000/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                if (!response.ok) {
+                    let errorMsg = HTTP error! Status: ${ response.status };
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error || errorData.message || HTTP error! Status: ${ response.status };
+                    } catch (e) {
+                        errorMsg = response.statusText || errorMsg;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // --- C. Get JSON data and render it ---
+                const data = await response.json();
+                renderReport(data);
+
+            } catch (error) {
+                // --- D. Handle Fetch/Network errors ---
+                console.error('Scan failed:', error);
+                renderError(error.message);
+            } finally {
+                // --- E. Reset loading state ---
+                setLoadingState(false);
+            }
+        }
+
+        // --- 4. Rendering Functions ---
+
+        function renderReport(data) {
+            try {
+                errorMessage.classList.add('hidden');
+                resultsContainer.classList.remove('hidden');
+
+                if (!data.summary) throw new Error("Missing 'summary' object in response.");
+                renderDashboard(data.summary);
+
+                if (!data.report) throw new Error("Missing 'report' array in response.");
+
+                if (data.report.length === 0) {
+                    reportCardsContainer.innerHTML = `
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                            <h3 class="text-xl font-bold text-green-600">Scan Complete!</h3>
+                            <p class="text-gray-600">No vulnerabilities were found.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const sortedReport = data.report.sort((a, b) => {
+                    const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+                    return severities.indexOf(a.severity) - severities.indexOf(b.severity);
+                });
+
+                reportCardsContainer.innerHTML = sortedReport.map(item => {
+                    const severity = item.severity || 'LOW';
+                    const title = item.title || 'Unknown Finding';
+                    const details = item.details || 'No details provided.';
+                    const recommendation = item.recommendation || 'No recommendation provided.';
+                    const config = severityConfig[severity] || severityConfig['LOW'];
+
+                    return `
+                        <div class="vulnerability-card ${config.bgColor} border ${config.borderColor} rounded-lg p-5 fade-in" data-severity="${severity}">
+                            <div class="flex items-start space-x-4">
+                                <svg class="h-6 w-6 flex-shrink-0" style="color: ${config.color}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    ${config.icon}
+                                </svg>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900">${title}</h3>
+                                    <span class="text-sm font-medium px-2 py-0.5 rounded" style="color: ${config.color}; background-color: ${config.color.replace(')', ', 0.1)')};">${severity}</span>
+                                    <p class="text-gray-700 mt-2 mb-3">${details}</p>
+                                    <strong class="text-gray-500 text-sm">Recommendation:</strong>
+                                    <p class="text-gray-600 text-sm">${recommendation}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (renderError) {
+                console.error('Failed to render report:', renderError);
+                renderError(Render Error: ${ renderError.message }.Check server response data format.);
+            }
+        }
+
+        function renderDashboard(summary) {
+            const { score, counts, total } = summary;
+
+            // --- A. Security Score ---
+            const scoreColor = score < 50 ? '#ef4444' : score < 80 ? '#f97316' : '#22c55e';
+            const progressBarContainer = scoreCard.querySelector('.progress-bar-container');
+            const progressBar = progressBarContainer.querySelector('.progress-bar');
+
+            progressBarContainer.style.setProperty('--final-value', score);
+            progressBarContainer.style.setProperty('--color', scoreColor);
+            progressBar.style.width = ${ score }%;
+            scoreText.textContent = ${ score }%;
+            scoreText.style.color = scoreColor;
+
+            // --- B. Donut Chart ---
+            createDonutChart(counts);
+
+            // --- C. Severity Counts ---
+            const countsData = counts || {};
+            countsCard.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="flex items-center text-sm"><span class="h-3 w-3 rounded-full bg-red-600 mr-2"></span>Critical</span>
+                    <span class="font-bold text-gray-800 text-lg">${countsData.CRITICAL || 0}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="flex items-center text-sm"><span class="h-3 w-3 rounded-full bg-orange-500 mr-2"></span>High</span>
+                    <span class="font-bold text-gray-800 text-lg">${countsData.HIGH || 0}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="flex items-center text-sm"><span class="h-3 w-3 rounded-full bg-yellow-400 mr-2"></span>Medium</span>
+                    <span class="font-bold text-gray-800 text-lg">${countsData.MEDIUM || 0}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="flex items-center text-sm"><span class="h-3 w-3 rounded-full bg-sky-500 mr-2"></span>Low</span>
+                    <span class="font-bold text-gray-800 text-lg">${countsData.LOW || 0}</span>
+                </div>
+            `;
+        }
+
+        function createDonutChart(counts) {
+            if (currentChartInstance) {
+                currentChartInstance.destroy();
+            }
+            const ctx = document.getElementById('severityChart').getContext('2d');
+            const countsData = counts || {};
+
+            currentChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: [
+                            countsData.CRITICAL || 0,
+                            countsData.HIGH || 0,
+                            countsData.MEDIUM || 0,
+                            countsData.LOW || 0
+                        ],
+                        backgroundColor: [
+                            severityConfig.CRITICAL.color,
+                            severityConfig.HIGH.color,
+                            severityConfig.MEDIUM.color,
+                            severityConfig.LOW.color
+                        ],
+                        borderColor: '#ffffff', // White background
+                        borderWidth: 4,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#1f2937',
+                            titleColor: '#c9d1d9',
+                            bodyColor: '#c9d1d9'
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderError(message) {
+            resultsContainer.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            errorMessage.textContent = Error: ${ message }. Please check the URL and your server connection.;
+        }
+
+        // --- 5. UI State & Filtering ---
+
+        function setLoadingState(isLoading) {
+            if (isLoading) {
+                scanButton.disabled = true;
+                buttonText.textContent = 'Scanning...';
+                spinner.classList.remove('hidden');
+                errorMessage.classList.add('hidden');
+                resultsContainer.classList.add('hidden');
+            } else {
+                scanButton.disabled = false;
+                buttonText.textContent = 'Scan >';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        filterButtonsContainer.addEventListener('click', (event) => {
+            if (event.target.tagName !== 'BUTTON') return;
+
+            const severity = event.target.dataset.severity;
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+                btn.classList.remove('bg-blue-600', 'text-white');
+            });
+            event.target.classList.remove('bg-gray-200', 'text-gray-700');
+            event.target.classList.add('bg-blue-600', 'text-white');
+
+            document.querySelectorAll('.vulnerability-card').forEach(card => {
+                if (severity === 'ALL' || card.dataset.severity === severity) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+    </script>
+
+</body>
+
+</html>

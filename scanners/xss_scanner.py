@@ -3,8 +3,8 @@ import logging
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 from bs4 import BeautifulSoup
 from models import Vulnerability
-from utils import severity
-from utils import recommendations
+from utils.severity import SeverityCalculator
+from utils.recommendations import RecommendationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class XSSScanner:
                         if payload in response.text:
                             vuln_type = 'XSS_REFLECTED'
                             severity = severity.get_severity(vuln_type)
-                            recommendation = recommendations.get_recommendation(vuln_type)
+                            recommendation = RecommendationEngine.get_recommendation(vuln_type)
                             
                             return Vulnerability(
                                 vuln_type=vuln_type,
@@ -151,7 +151,7 @@ class XSSScanner:
                 if payload in response.text:
                     vuln_type = 'XSS_REFLECTED'
                     severity = severity.get_severity(vuln_type)
-                    recommendation = recommendations.get_recommendation(vuln_type)
+                    recommendation = RecommendationEngine.get_recommendation(vuln_type)
                     
                     return Vulnerability(
                         vuln_type=vuln_type,

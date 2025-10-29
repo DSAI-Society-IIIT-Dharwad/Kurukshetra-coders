@@ -1,8 +1,8 @@
 import requests
 import logging
 from models import Vulnerability
-from utils import severity
-from utils import recommendations
+from utils.severity import SeverityCalculator
+from utils.recommendations import RecommendationEngine
 logger = logging.getLogger(__name__)
 
 class SQLInjectionScanner:
@@ -84,7 +84,7 @@ class SQLInjectionScanner:
                         if error_pattern in response_text:
                             vuln_type = 'SQL_INJECTION'
                             severity = severity.get_severity(vuln_type)
-                            recommendation = recommendations.get_recommendation(vuln_type)
+                            recommendation = RecommendationEngine.get_recommendation(vuln_type)
                             
                             vuln = Vulnerability(
                                 vuln_type=vuln_type,
@@ -120,7 +120,7 @@ class SQLInjectionScanner:
                             if abs(len(true_response.text) - len(false_response.text)) > 100:
                                 vuln_type = 'SQL_INJECTION'
                                 severity = severity.get_severity(vuln_type)
-                                recommendation = recommendations.get_recommendation(vuln_type)
+                                recommendation = RecommendationEngine.get_recommendation(vuln_type)
                                 
                                 vuln = Vulnerability(
                                     vuln_type=vuln_type,

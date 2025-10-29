@@ -3,8 +3,8 @@ import re
 import logging
 from bs4 import BeautifulSoup
 from models import Vulnerability
-from utils import severity
-from utils import recommendations
+from utils.severity import SeverityCalculator
+from utils.recommendations import RecommendationEngine
 logger = logging.getLogger(__name__)
 
 class VersionScanner:
@@ -36,7 +36,7 @@ class VersionScanner:
                     vuln_type='VERSION_DISCLOSURE',
                     severity='LOW',
                     description=f"Server version disclosed: {server_info}",
-                    recommendation=recommendations.get_recommendation('VERSION_DISCLOSURE')['fix'],
+                    recommendation=RecommendationEngine.get_recommendation('VERSION_DISCLOSURE')['fix'],
                     evidence={
                         'server_header': server_info,
                         'url': self.url

@@ -6,8 +6,4 @@ from .report_generator import ReportGenerator
 
 
 
-__all__ = ['SeverityCalculator', 'RecommendationEngine', 'ReportGenerator']
-
-
-
-
+_all_ = ['SeverityCalculator', 'RecommendationEngine', 'ReportGenerator']
